@@ -1,72 +1,84 @@
-#ifndef TOTALPAIRING_H
-#define TOTALPAIRING_H
+#ifndef _TOTAL_PAIRING_H_
+#define _TOTAL_PAIRING_H_
 
+#include <cstddef>//for std::size_t
 
-template<class Random_Access_Iterator>
+template<class T>
+struct __reference {
+	typedef typename T::reference type;
+};
+template<class T>
+struct __reference<T*> {
+	typedef T& type;
+};
+
+template<class Iterator>
+class Circulator {
+	using Int = std::size_t;
+	Iterator m_begin, current, m_end;
+public:
+	Circulator(Iterator begin, Int size, Int offset): m_begin(begin), current(begin + offset), m_end(m_begin + (size - 1)) {}
+	Circulator& operator++() {
+		if (current == m_end) {
+			current = m_begin;
+		} else {
+			++current;
+		}
+		return *this;
+	}
+	Circulator& operator--() {
+		if (current == m_begin) {
+			current = m_end;
+		} else {
+			--current;
+		}
+		return *this;
+	}
+	typename __reference<Iterator>::type operator*() {
+		return *current;
+	}
+};
+
+template<class T> Circulator(T a, std::size_t b,std::size_t c)->Circulator<T>;
+
+template<class const_Iterator>
 class total_pairing {
-	typedef Random_Access_Iterator Iterator;
-	typedef typename Iterator::difference_type Int;
-	Iterator symbols;
+	using Int = std::size_t;
+	const_Iterator symbols;
 	Int m_size;
-	Int repeat_count;
-	Int iteration_count;
-	bool algorithm;
+	Int repeat_count = 0;
+	Int offset = 0;
+	bool algorithm = true;
 
-	class Circulator {
-		Iterator m_begin, current, m_end;
-	public:
-		Circulator(Iterator begin, Iterator end, Iterator current) :m_begin(begin), current(current), m_end(end) {}
-		Circulator(Iterator begin, Int size, Int offset) : m_begin(begin), current(begin + offset), m_end(m_begin + size - 1) {}
-		Circulator& operator++() {
-			if (current == m_end) {
-				current = m_begin;
-			} else {
-				++current;
-			}
-			return *this;
-		}
-		Circulator& operator--() {
-			if (current == m_begin) {
-				current = m_end;
-			} else {
-				--current;
-			}
-			return *this;
-		}
-		typename Iterator::reference operator*() {
-			return *current;
-		}
-	};
-
-	typedef typename total_pairing::Circulator circulator;
-
-	void even_polygon_pairing(Iterator source,Iterator dest) {
+	template<class Iterator>
+	void even_polygon_pairing(const_Iterator source, Iterator dest) {
 		Int n = m_size / 2;
 		for (Int i = 0; i <= repeat_count; ++i) {
-			circulator left(dest, n, n - 1 - iteration_count);
-			circulator right(dest + n, n, iteration_count);
-			circulator left_symb(source, n, 0);
-			circulator right_symb(source + n, n, n - 1);
+			Circulator left_write(dest, n, n - 1 - offset);
+			Circulator right_write(dest + n, n, offset);
+			Circulator left_read(source, n, 0);
+			Circulator right_read(source + n, n, n - 1);
 			for (Int j = 0; j < n; ++j) {
-				*right = *left_symb;
-				*left = *right_symb;
-				++right;
-				++left_symb;
-				--left;
-				--right_symb;
+				*right_write = *left_read;
+				*left_write = *right_read;
+				++right_write;
+				++left_read;
+				--left_write;
+				--right_read;
 			}
 			source += m_size;
 			dest += m_size;
 		}
 	}
-	void odd_polygon_pairing(Iterator source,Iterator dest) {
+	template<class Iterator>
+	void odd_polygon_pairing(const_Iterator source, Iterator dest) {
 		Int n = m_size / 2;
 
 		for (Int i = 0; i <= repeat_count; ++i) {
-			circulator left_write(dest, n, iteration_count);
-			circulator left_read(source, n, iteration_count);
-			circulator right_write(dest + n, n, (n - 1 + iteration_count) % n);
-			circulator right_read(source + n, n, (n - 1 + iteration_count) % n);
+			Circulator left_write(dest, n, offset);
+			Circulator left_read(source, n, offset);
+			Circulator right_write(dest + n, n, (n - 1 + offset) % n);
+			Circulator right_read(source + n, n, (n - 1 + offset) % n);
 
 			*left_write = *right_read;
 			*right_write = *left_read;
@@ -83,7 +95,8 @@ class total_pairing {
 			dest += m_size;
 		}
 	}
-	void final_pairing(Iterator source,Iterator dest) {
+	template<class Iterator>
+	void final_pairing(const_Iterator source, Iterator dest) {
 		for (Int i = 0; i <= repeat_count; ++i) {
 			dest[0] = source[1];
 			dest[1] = source[0];
@@ -93,41 +106,35 @@ class total_pairing {
 	}
 
 public:
-	total_pairing(Iterator symbols, Int size) :symbols(symbols), m_size(size) {
+	total_pairing(const_Iterator symbols, Int size): symbols(symbols), m_size(size) {
 		if (m_size % 2) throw "Number of symbols must be even!";
-		repeat_count = 0;
-		iteration_count = 0;
-		algorithm = true;
 	}
-	total_pairing(Iterator symbols_begin, Iterator symbols_end) :symbols(symbols_begin), m_size(symbols_end - symbols_begin) {
+	total_pairing(const_Iterator symbols_begin, const_Iterator symbols_end): symbols(symbols_begin), m_size(symbols_end - symbols_begin) {
 		if (m_size % 2) throw "Number of symbols must be even!";
-		repeat_count = 0;
-		iteration_count = 0;
-		algorithm = true;
 	}
+	template<class Iterator>
 	bool operator()(Iterator dest) {
 		if (m_size == 0) {
 			return false;
 		}
 		if (m_size == 2) {
-			final_pairing(symbols,dest);
+			final_pairing(symbols, dest);
 			m_size = 0;
-		}
-		if (algorithm) {
-			even_polygon_pairing(symbols,dest);
-			++iteration_count;
-			if (iteration_count == m_size / 2 - 1 && m_size % 4) {
+		} else if (algorithm) {
+			even_polygon_pairing(symbols, dest);
+			++offset;
+			if (offset == m_size / 2 - 1 && m_size % 4) {
 				algorithm = false;
-				iteration_count = 0;
-			} else if (iteration_count == m_size / 2) {
-				iteration_count = 0;
+				offset = 0;
+			} else if (offset == m_size / 2) {
+				offset = 0;
 				m_size /= 2;
 				repeat_count = 2 * repeat_count + 1;
 			}
 		} else {
-			odd_polygon_pairing(symbols,dest);
-			++iteration_count;
-			if (iteration_count == m_size / 2) {
+			odd_polygon_pairing(symbols, dest);
+			++offset;
+			if (offset == m_size / 2) {
 				m_size = 0;
 			}
 		}
@@ -135,4 +142,9 @@ public:
 	}
 };
 
-#endif // TOTALPAIRING_H
+template<class Iterator>
+total_pairing(Iterator a, Iterator b)->total_pairing<Iterator>;
+template<class Iterator>
+total_pairing(Iterator a, std::size_t)->total_pairing<Iterator>;
+
+#endif // !_TOTAL_PAIRING_H_
